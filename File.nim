@@ -14,7 +14,7 @@ func to_seq(i: Natural): seq[uint8] =
     if c == 0:
       break
 
-converter to_int(bytes: seq[uint8]): BiggestInt =
+converter to_natural(bytes: seq[uint8]): Natural =
   var m = 0
   for b in bytes:
     if m == 0:
@@ -23,37 +23,43 @@ converter to_int(bytes: seq[uint8]): BiggestInt =
       m *= 256
     result += int(b) * m
 
-proc write_natural(f: File, i: Natural) =
-  let payload = i.to_seq
-  do_assert f.write_bytes(@[uint8(payload.len)], 0, 1) == 1
-  do_assert f.write_bytes(payload, 0, payload.len) == payload.len
+type Continent = ref object
+  path*: string
+  file: File
 
-proc read_natural(f: File): BiggestInt =
+proc new_continent(path: string): Continent =
+  new(result)
+  result.path = path
+  result.file = open(path, fm_read_write)
+
+proc write(f: Continent, i: Natural, pos: Natural) =
+  f.file.set_file_pos pos
+  let payload = i.to_seq
+  do_assert f.file.write_bytes(@[uint8(payload.len)], 0, 1) == 1
+  do_assert f.file.write_bytes(payload, 0, payload.len) == payload.len
+
+proc read_natural(f: Continent, pos: Natural): Natural =
+  f.file.set_file_pos pos
   let size = block:
     var s = @[uint8(0)]
-    do_assert f.read_bytes(s, 0, 1) == 1
+    do_assert f.file.read_bytes(s, 0, 1) == 1
     Natural s[0]
 
   result = block:
     var r: seq[uint8]
     for i in 1 .. size:
       r.add 0
-    do_assert f.read_bytes(r, 0, size) == size
-    to_int @r
+    do_assert f.file.read_bytes(r, 0, size) == size
+    to_natural @r
 
-const raw_path = "../test.bin"
-const path = Path "../test.bin"
-const n = 1234
+proc test() =
+  const path = "../test.bin"
 
-if not file_exists path:
-  remove_file path
+  block test_natural:
+    const n = 1234
+    let c = path.new_continent
+    c.write(n, 0)
+    check n == c.read_natural 0
 
-block:
-  let f = open(raw_path, fm_write)
-  f.write_natural n
-  close f
-
-block:
-  let f = open(raw_path, fm_read)
-  check n == f.read_natural
-  close f
+if is_main_module:
+  test()
