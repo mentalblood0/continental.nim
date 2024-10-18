@@ -70,21 +70,15 @@ proc read_string*(c: Continent): string =
   return r
 
 proc test() =
-  proc test(c: Continent, n: Natural) =
-    check n == c.read_natural
-
-  proc test(c: Continent, s: string) =
-    check s == c.read_string
-
-  template test_write_read(payload: untyped) =
+  template test(read_f: untyped, payload: untyped) =
     block:
       let c = "../test.bin".new_continent
       c.write payload
       c.pos = 0
-      c.test payload
+      check payload == c.read_f
 
-  test_write_read 1234
-  test_write_read "abcd"
+  read_natural.test 1234
+  read_string.test "abcd"
 
 if is_main_module:
   test()
