@@ -1,4 +1,6 @@
 import std/syncio
+import std/options
+import std/with
 import std/sugar
 import std/paths
 import std/unittest
@@ -23,43 +25,66 @@ converter to_natural(bytes: seq[uint8]): Natural =
       m *= 256
     result += int(b) * m
 
-type Continent = ref object
+type Continent* = ref object
   path*: string
   file: File
 
-proc new_continent(path: string): Continent =
+proc new_continent*(path: string): Continent =
   new(result)
   result.path = path
   result.file = open(path, fm_read_write)
 
-proc write(f: Continent, i: Natural, pos: Natural) =
-  f.file.set_file_pos pos
+proc `pos=`(c: Continent, value: int) =
+  c.file.set_file_pos value
+
+proc read_size(f: Continent): Natural =
+  var s = @[uint8(0)]
+  do_assert f.file.read_bytes(s, 0, 1) == 1
+  return Natural s[0]
+
+proc write*(c: Continent, i: Natural) =
   let payload = i.to_seq
-  do_assert f.file.write_bytes(@[uint8(payload.len)], 0, 1) == 1
-  do_assert f.file.write_bytes(payload, 0, payload.len) == payload.len
+  do_assert c.file.write_bytes(@[uint8(payload.len)], 0, 1) == 1
+  do_assert c.file.write_bytes(payload, 0, payload.len) == payload.len
 
-proc read_natural(f: Continent, pos: Natural): Natural =
-  f.file.set_file_pos pos
-  let size = block:
-    var s = @[uint8(0)]
-    do_assert f.file.read_bytes(s, 0, 1) == 1
-    Natural s[0]
+proc read_natural*(c: Continent): Natural =
+  let size = c.read_size
 
-  result = block:
-    var r: seq[uint8]
-    for i in 1 .. size:
-      r.add 0
-    do_assert f.file.read_bytes(r, 0, size) == size
-    to_natural @r
+  var r: seq[uint8]
+  for i in 1 .. size:
+    r.add 0
+  do_assert c.file.read_bytes(r, 0, size) == size
+  return to_natural @r
+
+proc write*(c: Continent, s: string) =
+  c.write s.len
+  do_assert c.file.write_chars(s, 0, s.len) == s.len
+
+proc read_string*(c: Continent): string =
+  let size = c.read_natural
+
+  var r: string
+  for i in 1 .. size:
+    r.add char(0)
+  do_assert c.file.read_chars(r, 0, size) == size
+  return r
 
 proc test() =
-  const path = "../test.bin"
+  proc test(c: Continent, n: Natural) =
+    check n == c.read_natural
 
-  block test_natural:
-    const n = 1234
-    let c = path.new_continent
-    c.write(n, 0)
-    check n == c.read_natural 0
+  proc test(c: Continent, s: string) =
+    check s == c.read_string
+
+  template test_write_read(payload: untyped) =
+    block:
+      let c = "../test.bin".new_continent
+      c.write payload
+      c.pos = 0
+      c.test payload
+
+  test_write_read 1234
+  test_write_read "abcd"
 
 if is_main_module:
   test()
