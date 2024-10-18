@@ -37,11 +37,11 @@ const n = 1234
 if not file_exists path:
   remove_file path
 
-proc write_natural(f: File, i: Natural, pos: Natural, size: Natural) =
+proc write(f: File, i: Natural, pos: Natural, size: Natural) =
   let payload = n.to_seq size
   do_assert f.write_bytes(payload, pos, size) == size
 
-proc read_natural(f: File, pos: Natural, size: Natural): BiggestInt =
+proc read(f: File, pos: Natural, size: Natural): BiggestInt =
   var r: seq[uint8]
   for i in 1 .. size:
     r.add(0)
@@ -50,11 +50,11 @@ proc read_natural(f: File, pos: Natural, size: Natural): BiggestInt =
 
 block:
   let f = open(raw_path, fm_write)
-  f.write_natural(n, 0, 8)
+  f.write(n, 0, 8)
   close f
 
 block:
   let f = open(raw_path, fm_read)
-  check n == f.read_natural(0, 8)
+  check n == f.read(0, 8)
   close f
 
