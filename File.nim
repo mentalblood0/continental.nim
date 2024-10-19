@@ -115,8 +115,7 @@ proc write*(c: Continent, s: string) =
   c.write dkString
 
 proc read_string(c: Continent): string =
-  let size = c.read_natural
-  c.read_chars size
+  c.read_chars c.read_natural
 
 proc write*(c: Continent, d: Data) =
   case d.kind
@@ -132,11 +131,31 @@ proc read(c: Continent): Data =
   of dkString:
     Data(kind: dkString, str: c.read_string)
 
+proc read_link(c: Continent, size: Natural): Data =
+  c.pos = c.read_bytes size
+  c.read
+
+proc skip(c: Continent) =
+  c.rmove 1
+  c.rmove c.read_byte
+
 proc array(c: Continent) =
   c.stack.add c.file.get_file_pos
 
 proc `end`(c: Continent) =
   let begin = c.stack.pop
+  var cur_write = c.pos
+  var cur_read = cur_write
+  while true:
+    if cur_read == begin:
+      break
+
+    c.pos = cur_write
+    c.write cur_read
+
+    c.pos = cur_read
+    c.skip
+    cur_read = c.pos
 
 proc test() =
   proc test(payload: seq[Data]) =

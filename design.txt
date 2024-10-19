@@ -1,29 +1,27 @@
-m = [a, b, c]
+m = [1234, "abcd"]
 
 with c:
   array
-  write a
-  write b
-  write c
-  end
+  write 1234
+  write "abcd"
+  `end`
 
-a
-size a
-type a
-b
-size b
-type b
-c
-size c
-type c
+1234
+size 1234
+dkNatural
 
-link m a
-link m b
-link m c
+"abcd"
+size "abcd"
+size size "abcd"
+dkString
 
-len m
+link m "abcd"
+link m 1234
+
+2
+size 2
 size link m
-type m
+array
 
 
 k = [a, [b, c], d]
