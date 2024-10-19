@@ -159,13 +159,12 @@ proc `end`(c: Continent) =
 
 proc test() =
   proc test(payload: seq[Data]) =
-    block:
-      let c = "../test.bin".new_continent
-      for p in payload:
-        c.write p
-      c.rpos = 0
-      for i in countdown(payload.len - 1, 0):
-        check payload[i] == c.read
+    let c = "../test.bin".new_continent
+    for p in payload:
+      c.write p
+    c.rpos = 0
+    for i in countdown(payload.len - 1, 0):
+      check payload[i] == c.read
 
   test @[new_data 1234, new_data "abcd"]
 
