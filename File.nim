@@ -25,9 +25,21 @@ converter to_natural(bytes: seq[uint8]): Natural =
       m *= 256
     result += int(b) * m
 
-type Continent* = ref object
-  path*: string
-  file: File
+type
+  Continent* = ref object
+    path*: string
+    file: File
+
+  DataKind* = enum
+    dkNatural
+    dkString
+
+  DataObj = object
+    case kind*: DataKind
+    of dkNatural: nat*: Natural
+    of dkString: str*: string
+
+  Data = ref DataObj
 
 proc new_continent*(path: string): Continent =
   new(result)
@@ -37,18 +49,20 @@ proc new_continent*(path: string): Continent =
 proc `pos=`(c: Continent, value: int) =
   c.file.set_file_pos value
 
-proc read_size(f: Continent): Natural =
-  var s = @[uint8(0)]
-  do_assert f.file.read_bytes(s, 0, 1) == 1
-  return Natural s[0]
+proc write(c: Continent, t: DataKind) =
+  do_assert c.file.write_bytes(@[uint8(t)], 0, 1) == 1
 
-proc write*(c: Continent, i: Natural) =
-  let payload = i.to_seq
-  do_assert c.file.write_bytes(@[uint8(payload.len)], 0, 1) == 1
-  do_assert c.file.write_bytes(payload, 0, payload.len) == payload.len
+proc write*(c: Continent, i: Natural, write_type: bool = true) =
+  let p = block:
+    let a = i.to_seq
+    var r: seq[uint8]
+    if write_type:
+      r.add(uint8(dkNatural))
+    r & @[uint8(a.len)] & a
+  do_assert c.file.write_bytes(p, 0, p.len) == p.len
 
 proc read_natural*(c: Continent): Natural =
-  let size = c.read_size
+  let size = Natural c.file.read_char
 
   var r: seq[uint8]
   for i in 1 .. size:
@@ -57,10 +71,11 @@ proc read_natural*(c: Continent): Natural =
   return to_natural @r
 
 proc write*(c: Continent, s: string) =
-  c.write s.len
+  c.write dkString
+  c.write(s.len, write_type = false)
   do_assert c.file.write_chars(s, 0, s.len) == s.len
 
-proc read_string*(c: Continent): string =
+proc read_string(c: Continent): string =
   let size = c.read_natural
 
   var r: string
@@ -69,16 +84,23 @@ proc read_string*(c: Continent): string =
   do_assert c.file.read_chars(r, 0, size) == size
   return r
 
+proc read(c: Continent): Data =
+  case DataKind c.file.read_char
+  of dkNatural:
+    Data(kind: dkNatural, nat: c.read_natural)
+  of dkString:
+    Data(kind: dkString, str: c.read_string)
+
 proc test() =
-  template test(read_f: untyped, payload: untyped) =
+  template test(payload: untyped, k: untyped) =
     block:
       let c = "../test.bin".new_continent
       c.write payload
       c.pos = 0
-      check payload == c.read_f
+      check payload == c.read.k
 
-  read_natural.test 1234
-  read_string.test "abcd"
+  1234.test nat
+  "abcd".test str
 
 if is_main_module:
   test()

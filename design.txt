@@ -1,0 +1,87 @@
+m = [a, b, c]
+
+with c:
+  array
+  write a
+  write b
+  write c
+  end
+
+a
+size a
+type a
+b
+size b
+type b
+c
+size c
+type c
+
+link m a
+link m b
+link m c
+
+len m
+size link m
+type m
+
+
+k = [a, [b, c], d]
+n = [b, c]
+
+with c:
+  array
+  write a
+  array
+  write b
+  write c
+  end
+  write d
+  end
+
+a
+size a
+type a
+
+b
+size b
+type b
+c
+size c
+type c
+
+link n b
+link n c
+
+len n
+size link n
+type n
+
+d
+size d
+type d
+
+link k a
+link k n
+link k d
+
+len k
+size link k
+type k
+
+
+n = [b, k]
+k = [a, n]
+m = [[a, n] [b, k]]
+
+with c:
+  array
+  array
+  write a
+  write link "1"
+  end
+  array
+  write b
+  write link "0"
+  end
+  end
