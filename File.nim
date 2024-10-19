@@ -146,6 +146,8 @@ proc `end`(c: Continent) =
   let begin = c.stack.pop
   var cur_write = c.pos
   var cur_read = cur_write
+  var length = 0
+
   while true:
     if cur_read == begin:
       break
@@ -156,6 +158,9 @@ proc `end`(c: Continent) =
     c.pos = cur_read
     c.skip
     cur_read = c.pos
+    length += 1
+
+  c.write length
 
 proc test() =
   proc test(payload: seq[Data]) =
