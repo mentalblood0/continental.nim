@@ -1,10 +1,5 @@
 import std/syncio
-import std/options
-import std/with
-import std/sugar
-import std/paths
 import std/unittest
-import std/files
 
 type IntegerEncodingError = object of RangeDefect
 
@@ -41,6 +36,21 @@ type
     of dkString: str*: string
 
   Data = ref DataObj
+
+func new_data(n: Natural): Data =
+  Data(kind: dkNatural, nat: n)
+
+func new_data(s: string): Data =
+  Data(kind: dkString, str: s)
+
+func `==`(a: Data, b: Data): bool =
+  if a.kind != b.kind:
+    return false
+  case a.kind
+  of dkNatural:
+    a.nat == b.nat
+  of dkString:
+    a.str == b.str
 
 proc new_continent*(path: string): Continent =
   new(result)
@@ -108,6 +118,13 @@ proc read_string(c: Continent): string =
   let size = c.read_natural
   c.read_chars size
 
+proc write*(c: Continent, d: Data) =
+  case d.kind
+  of dkNatural:
+    c.write d.nat
+  of dkString:
+    c.write d.str
+
 proc read(c: Continent): Data =
   case DataKind c.read_byte
   of dkNatural:
@@ -122,15 +139,16 @@ proc `end`(c: Continent) =
   let begin = c.stack.pop
 
 proc test() =
-  template test(payload: untyped, k: untyped) =
+  proc test(payload: seq[Data]) =
     block:
       let c = "../test.bin".new_continent
-      c.write payload
+      for p in payload:
+        c.write p
       c.rpos = 0
-      check payload == c.read.k
+      for i in countdown(payload.len - 1, 0):
+        check payload[i] == c.read
 
-  1234.test nat
-  "abcd".test str
+  test @[new_data 1234, new_data "abcd"]
 
 if is_main_module:
   test()
