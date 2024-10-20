@@ -114,9 +114,6 @@ proc write*(c: Continent, s: string) =
   c.write(s.len, write_type = false)
   c.write dkString
 
-proc read_string(c: Continent): string =
-  c.read_chars c.read_natural
-
 proc write*(c: Continent, d: Data) =
   case d.kind
   of dkNatural:
@@ -129,10 +126,10 @@ proc read(c: Continent): Data =
   of dkNatural:
     Data(kind: dkNatural, nat: c.read_natural)
   of dkString:
-    Data(kind: dkString, str: c.read_string)
+    Data(kind: dkString, str: c.read_chars c.read_natural)
 
 proc read_link(c: Continent, size: Natural): Data =
-  c.pos = c.read_bytes size
+  c.pos = to_natural c.read_bytes size
   c.read
 
 proc skip(c: Continent) =
