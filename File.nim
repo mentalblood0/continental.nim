@@ -32,7 +32,19 @@ type
     dkNatural
     dkString
     dkArray
-    dkLink
+    dkStaticLink
+    dkDynamicLink
+
+  Path* = ref object
+    c: Continent
+    parent: Option[Path]
+    pos: Natural
+
+  DynamicLink = tuple[path: seq[Natural]]
+
+  StaticLink = ref object
+    c: Continent
+    pos: Natural
 
   DataObj = object
     case kind*: DataKind
@@ -41,11 +53,27 @@ type
     of dkArray:
       len*: Natural
       link_size: Natural
-    of dkLink: pos*: Natural
+    of dkStaticLink: pos*: Natural
+    of dkDynamicLink: dl*: DynamicLink
 
   Data = ref DataObj
 
   NotSupported* = object of ValueError
+
+func new_path(c: Continent): Path =
+  new(result)
+  result.c = c
+
+func new_link(path: seq[Natural]): DynamicLink = (path: path)
+
+proc `[]`*(p: Path, i: int64): Path
+proc compile(c: Continent, l: DynamicLink): StaticLink =
+  new(result)
+  result.c = c
+  var path = c.new_path
+  for n in l.path:
+    path = path[n]
+  result.pos = path.pos
 
 func new_data*(n: Natural): Data =
   Data(kind: dkNatural, nat: n)
@@ -156,9 +184,11 @@ proc read(c: Continent): Data =
     let ls = Natural c.read_byte
     let l = c.read_natural
     Data(kind: dkArray, len: l, link_size: ls)
-  of dkLink:
+  of dkStaticLink:
     c.go_link Natural c.read_byte
     c.read
+  of dkDynamicLink:
+    raise new_exception(ValueError, "Dynamic links not supported yet")
 
 proc move_to_element(c: Continent, a: Data, i: int64) =
   do_assert a.kind == dkArray
@@ -181,7 +211,9 @@ proc skip(c: Continent) =
     let a = c.read
     c.go_link a.link_size
     c.skip
-  of dkLink: c.rmove c.read_byte
+  of dkStaticLink: c.rmove c.read_byte
+  of dkDynamicLink:
+    raise new_exception(ValueError, "Dynamic links not supported yet")
 
 proc array*(c: Continent) =
   c.stack.add c.pos
@@ -215,14 +247,6 @@ proc `end`*(c: Continent) =
   c.write_bytes link_size
   c.write dkArray
 
-type Path* = ref object
-  c: Continent
-  parent: Option[Path]
-  pos: Natural
-
-func new_path(c: Continent): Path =
-  new(result)
-  result.c = c
 
 proc save(p: Path) =
   p.pos = p.c.pos
@@ -251,26 +275,10 @@ proc `[]`*(c: Continent, i: int64): Path =
   result.c = c
   result = result[i]
 
-type Link = tuple[path: seq[Natural]]
-
-func new_link(path: seq[Natural]): Link = (path: path)
-
-type CompiledLink = ref object
-  c: Continent
-  pos: Natural
-
-proc compile(c: Continent, l: Link): CompiledLink =
-  new(result)
-  result.c = c
-  var path = c.new_path
-  for n in l.path:
-    path = path[n]
-  result.pos = path.pos
-
-proc write*(c: Continent, cl: CompiledLink) =
+proc write*(c: Continent, cl: StaticLink) =
   do_assert c == cl.c
   c.write(cl.pos, write_type = false)
-  c.write_bytes @[uint8 dkLink]
+  c.write_bytes @[uint8 dkStaticLink]
 
 proc test() =
   proc test_plain(payload: seq[Data]) =
