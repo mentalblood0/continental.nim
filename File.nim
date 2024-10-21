@@ -1,4 +1,6 @@
 import std/syncio
+import std/sugar
+import std/with
 import std/unittest
 
 type IntegerEncodingError = object of RangeDefect
@@ -29,13 +31,19 @@ type
   DataKind* = enum
     dkNatural
     dkString
+    dkArray
 
   DataObj = object
     case kind*: DataKind
     of dkNatural: nat*: Natural
     of dkString: str*: string
+    of dkArray:
+      len*: Natural
+      link_size: Natural
 
   Data = ref DataObj
+
+  NotSupported* = object of ValueError
 
 func new_data(n: Natural): Data =
   Data(kind: dkNatural, nat: n)
@@ -51,6 +59,8 @@ func `==`(a: Data, b: Data): bool =
     a.nat == b.nat
   of dkString:
     a.str == b.str
+  else:
+    raise new_exception(ValueError, "Comparing data of kind " & $a.kind & " not supported")
 
 proc new_continent*(path: string): Continent =
   new(result)
@@ -120,27 +130,44 @@ proc write*(c: Continent, d: Data) =
     c.write d.nat
   of dkString:
     c.write d.str
+  else:
+    raise new_exception(ValueError, "Direct writing of data of kind " &
+        $d.kind & " not supported")
 
 proc read(c: Continent): Data =
-  case DataKind c.read_byte
+  let t = DataKind c.read_byte
+  case t
   of dkNatural:
     Data(kind: dkNatural, nat: c.read_natural)
   of dkString:
     Data(kind: dkString, str: c.read_chars c.read_natural)
+  of dkArray:
+    let ls = Natural c.read_byte
+    let l = c.read_natural
+    Data(kind: dkArray, len: l, link_size: ls)
 
 proc read_link(c: Continent, size: Natural): Data =
   c.pos = to_natural c.read_bytes size
   c.read
 
 proc skip(c: Continent) =
-  c.rmove 1
-  c.rmove c.read_byte
+  let t = DataKind c.read_byte
+  case t
+  of dkNatural: c.rmove c.read_byte
+  of dkString: c.rmove c.read_natural
+  else:
+    raise new_exception(ValueError, "Skipping arrays not supported yet")
 
 proc array(c: Continent) =
   c.stack.add c.file.get_file_pos
 
+proc write_link(c: Continent, link: Natural) =
+  c.write link
+
 proc `end`(c: Continent) =
   let begin = c.stack.pop
+  let max_pos = c.pos
+
   var cur_write = c.pos
   var cur_read = cur_write
   var length = 0
@@ -150,14 +177,17 @@ proc `end`(c: Continent) =
       break
 
     c.pos = cur_write
-    c.write cur_read
+    c.write_link cur_read
 
     c.pos = cur_read
     c.skip
     cur_read = c.pos
     length += 1
 
+  c.pos = cur_write
   c.write length
+  c.write max_pos
+  c.write dkArray
 
 proc test() =
   proc test(payload: seq[Data]) =
@@ -169,6 +199,17 @@ proc test() =
       check payload[i] == c.read
 
   test @[new_data 1234, new_data "abcd"]
+
+  block test_array:
+    let c = "../test.bin".new_continent
+    with c:
+      array
+      write 1234
+      write "abcd"
+      `end`
+    c.rpos = 0
+    let r = c.read
+    check r.kind == dkArray
 
 if is_main_module:
   test()
