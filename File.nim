@@ -220,6 +220,10 @@ type Path* = ref object
   parent: Option[Path]
   pos: Natural
 
+func new_path(c: Continent): Path =
+  new(result)
+  result.c = c
+
 proc save(p: Path) =
   p.pos = p.c.pos
 
@@ -250,6 +254,23 @@ proc `[]`*(c: Continent, i: int64): Path =
 type Link = tuple[path: seq[Natural]]
 
 func new_link(path: seq[Natural]): Link = (path: path)
+
+type CompiledLink = ref object
+  c: Continent
+  pos: Natural
+
+proc compile(c: Continent, l: Link): CompiledLink =
+  new(result)
+  result.c = c
+  var path = c.new_path
+  for n in l.path:
+    path = path[n]
+  result.pos = path.pos
+
+proc write*(c: Continent, cl: CompiledLink) =
+  do_assert c == cl.c
+  c.write(cl.pos, write_type = false)
+  c.write_bytes @[uint8 dkLink]
 
 proc test() =
   proc test_plain(payload: seq[Data]) =
