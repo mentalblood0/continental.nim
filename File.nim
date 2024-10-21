@@ -32,6 +32,7 @@ type
     dkNatural
     dkString
     dkArray
+    dkLink
 
   DataObj = object
     case kind*: DataKind
@@ -40,6 +41,7 @@ type
     of dkArray:
       len*: Natural
       link_size: Natural
+    of dkLink: pos*: Natural
 
   Data = ref DataObj
 
@@ -139,6 +141,10 @@ proc write*(c: Continent, d: Data) =
     raise new_exception(ValueError, "Direct writing of data of kind " &
         $d.kind & " not supported")
 
+proc go_link(c: Continent, size: Natural) =
+  let l = c.read_bytes size
+  c.pos = to_natural l
+
 proc read(c: Continent): Data =
   let t = DataKind c.read_byte
   case t
@@ -150,10 +156,9 @@ proc read(c: Continent): Data =
     let ls = Natural c.read_byte
     let l = c.read_natural
     Data(kind: dkArray, len: l, link_size: ls)
-
-proc go_link(c: Continent, size: Natural) =
-  let l = c.read_bytes size
-  c.pos = to_natural l
+  of dkLink:
+    c.go_link Natural c.read_byte
+    c.read
 
 proc move_to_element(c: Continent, a: Data, i: int64) =
   do_assert a.kind == dkArray
@@ -176,6 +181,7 @@ proc skip(c: Continent) =
     let a = c.read
     c.go_link a.link_size
     c.skip
+  of dkLink: c.rmove c.read_byte
 
 proc array*(c: Continent) =
   c.stack.add c.pos
@@ -240,6 +246,10 @@ proc `[]`*(c: Continent, i: int64): Path =
   c.rpos = 0
   result.c = c
   result = result[i]
+
+type Link = tuple[path: seq[Natural]]
+
+func new_link(path: seq[Natural]): Link = (path: path)
 
 proc test() =
   proc test_plain(payload: seq[Data]) =
