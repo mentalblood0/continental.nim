@@ -45,13 +45,13 @@ type
 
   NotSupported* = object of ValueError
 
-func new_data(n: Natural): Data =
+func new_data*(n: Natural): Data =
   Data(kind: dkNatural, nat: n)
 
-func new_data(s: string): Data =
+func new_data*(s: string): Data =
   Data(kind: dkString, str: s)
 
-func `==`(a: Data, b: Data): bool =
+func `==`*(a: Data, b: Data): bool =
   if a.kind != b.kind:
     return false
   case a.kind
@@ -121,7 +121,7 @@ proc write*(c: Continent, i: Natural, write_type: bool = true) =
     r
   c.write_bytes p
 
-proc read_natural*(c: Continent): Natural =
+proc read_natural(c: Continent): Natural =
   to_natural c.read_bytes Natural c.read_byte
 
 proc write*(c: Continent, s: string) =
@@ -177,10 +177,10 @@ proc skip(c: Continent) =
     c.go_link a.link_size
     c.skip
 
-proc array(c: Continent) =
+proc array*(c: Continent) =
   c.stack.add c.pos
 
-proc `end`(c: Continent) =
+proc `end`*(c: Continent) =
   let begin = c.stack.pop
   let max_pos = c.pos
 
@@ -209,7 +209,7 @@ proc `end`(c: Continent) =
   c.write_bytes link_size
   c.write dkArray
 
-type Path = ref object
+type Path* = ref object
   c: Continent
   parent: Option[Path]
   pos: Natural
@@ -220,11 +220,11 @@ proc save(p: Path) =
 proc load(p: Path) =
   p.c.pos = p.pos
 
-proc read(p: Path): Data =
+proc read*(p: Path): Data =
   p.load
   p.c.read
 
-proc `[]`(p: Path, i: int64): Path =
+proc `[]`*(p: Path, i: int64): Path =
   new(result)
   let a = p.c.read
   if a.kind != dkArray:
@@ -235,7 +235,7 @@ proc `[]`(p: Path, i: int64): Path =
   result.c.go_link a.link_size
   result.save
 
-proc `[]`(c: Continent, i: int64): Path =
+proc `[]`*(c: Continent, i: int64): Path =
   new(result)
   c.rpos = 0
   result.c = c
