@@ -211,7 +211,7 @@ proc `end`(c: Continent) =
 
 type Path = ref object
   c: Continent
-  prev: Option[Path]
+  parent: Option[Path]
   pos: Natural
 
 proc save(p: Path) =
@@ -230,7 +230,7 @@ proc `[]`(p: Path, i: int64): Path =
   if a.kind != dkArray:
     raise new_exception(ValueError, "Indexing only supported for data of dkArray kind")
   result.c = p.c
-  result.prev = some p
+  result.parent = some p
   result.c.move_to_element(a, i)
   result.c.go_link a.link_size
   result.save
