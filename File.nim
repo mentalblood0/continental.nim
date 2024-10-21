@@ -205,7 +205,7 @@ proc `[]`(c: Continent, i: int64): Data =
   c.pos = init_pos
 
 proc test() =
-  proc test(payload: seq[Data]) =
+  proc test_plain(payload: seq[Data]) =
     let c = "../test.bin".new_continent
     for p in payload:
       c.write p
@@ -213,18 +213,19 @@ proc test() =
     for i in countdown(payload.len - 1, 0):
       check payload[i] == c.read
 
-  test @[new_data 1234, new_data "abcd"]
+  test_plain @[new_data 1234, new_data "abcd"]
 
-  block test_array:
+  proc test_array(payload: seq[Data]) =
     let c = "../test.bin".new_continent
-    with c:
-      array
-      write 1234
-      write "abcd"
-      `end`
+    c.array
+    for p in payload:
+      c.write p
+    c.`end`
     c.rpos = 0
-    check c[0].nat == 1234
-    check c[1].str == "abcd"
+    for i, p in payload:
+      check c[i] == p
+
+  test_array @[new_data 1234, new_data "abcd"]
 
 if is_main_module:
   test()
