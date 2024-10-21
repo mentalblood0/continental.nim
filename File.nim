@@ -260,7 +260,7 @@ proc test() =
     c.`end`
     c.rpos = 0
     for i, p in payload:
-      check c[i] == p
+      check c[i].read == p
 
   test_array @[new_data 1234, new_data "abcd"]
 
