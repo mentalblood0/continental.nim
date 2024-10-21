@@ -1,5 +1,5 @@
 import std/syncio
-import std/sugar
+import std/options
 import std/with
 import std/unittest
 
@@ -76,6 +76,9 @@ proc `pos=`(c: Continent, value: Natural) =
 proc `rpos=`(c: Continent, value: Natural) =
   c.file.set_file_pos -value, fsp_end
 
+proc move(c: Continent, value: Natural) =
+  c.file.set_file_pos value, fsp_cur
+
 proc rmove(c: Continent, value: Natural) =
   c.file.set_file_pos -value, fsp_cur
 
@@ -87,8 +90,7 @@ proc read_bytes(c: Continent, n: Natural): seq[uint8] =
   c.rmove n
   result = block:
     var r: seq[uint8]
-    for i in 1 .. n:
-      r.add 0
+    r.set_len(n)
     do_assert c.file.read_bytes(r, 0, r.len) == r.len
     r
   c.rmove n
@@ -100,7 +102,7 @@ proc read_chars(c: Continent, n: Natural): string =
     var r: string
     for i in 1 .. n:
       r &= 'a'
-    do_assert c.file.read_chars(r, 0, r.len) == r.len
+    do_assert c.file.read_chars(r) == r.len
     r
   c.rmove n
 
@@ -149,20 +151,34 @@ proc read(c: Continent): Data =
     let l = c.read_natural
     Data(kind: dkArray, len: l, link_size: ls)
 
-proc read_link(c: Continent, size: Natural): Data =
-  c.pos = to_natural c.read_bytes size
-  c.read
+proc go_link(c: Continent, size: Natural) =
+  let l = c.read_bytes size
+  c.pos = to_natural l
+
+proc move_to_element(c: Continent, a: Data, i: int64) =
+  do_assert a.kind == dkArray
+  let ni = block:
+    if i >= 0:
+      i
+    else:
+      a.len + i
+  if ni >= a.len:
+    raise new_exception(IndexDefect, "Index " & $ni & " is out of bound " & $a.len)
+  c.rmove a.link_size * ni
 
 proc skip(c: Continent) =
   let t = DataKind c.read_byte
   case t
   of dkNatural: c.rmove c.read_byte
   of dkString: c.rmove c.read_natural
-  else:
-    raise new_exception(ValueError, "Skipping arrays not supported yet")
+  of dkArray:
+    c.move 1
+    let a = c.read
+    c.go_link a.link_size
+    c.skip
 
 proc array(c: Continent) =
-  c.stack.add c.file.get_file_pos
+  c.stack.add c.pos
 
 proc `end`(c: Continent) =
   let begin = c.stack.pop
@@ -193,39 +209,76 @@ proc `end`(c: Continent) =
   c.write_bytes link_size
   c.write dkArray
 
-proc `[]`(c: Continent, i: int64): Data =
-  let init_pos = c.pos
-  let a = c.read
+type Path = ref object
+  c: Continent
+  prev: Option[Path]
+  pos: Natural
+
+proc save(p: Path) =
+  p.pos = p.c.pos
+
+proc load(p: Path) =
+  p.c.pos = p.pos
+
+proc read(p: Path): Data =
+  p.load
+  p.c.read
+
+proc `[]`(p: Path, i: int64): Path =
+  new(result)
+  let a = p.c.read
   if a.kind != dkArray:
-    raise new_exception(ValueError, "Indexing only supported for dkArray data kind")
-  if i >= a.len:
-    raise new_exception(IndexDefect, "Index " & $i & " is out of bound " & $a.len)
-  c.rmove a.link_size * i
-  result = c.read_link a.link_size
-  c.pos = init_pos
+    raise new_exception(ValueError, "Indexing only supported for data of dkArray kind")
+  result.c = p.c
+  result.prev = some p
+  result.c.move_to_element(a, i)
+  result.c.go_link a.link_size
+  result.save
+
+proc `[]`(c: Continent, i: int64): Path =
+  new(result)
+  c.rpos = 0
+  result.c = c
+  result = result[i]
 
 proc test() =
-  proc test_plain(payload: seq[Data]) =
+  # proc test_plain(payload: seq[Data]) =
+  #   let c = "../test.bin".new_continent
+  #   for p in payload:
+  #     c.write p
+  #   c.rpos = 0
+  #   for i in countdown(payload.len - 1, 0):
+  #     check payload[i] == c.read
+  #
+  # test_plain @[new_data 1234, new_data "abcd"]
+  #
+  # proc test_array(payload: seq[Data]) =
+  #   let c = "../test.bin".new_continent
+  #   c.array
+  #   for p in payload:
+  #     c.write p
+  #   c.`end`
+  #   c.rpos = 0
+  #   for i, p in payload:
+  #     check c[i] == p
+  #
+  # test_array @[new_data 1234, new_data "abcd"]
+
+  block test_sub_array:
     let c = "../test.bin".new_continent
-    for p in payload:
-      c.write p
-    c.rpos = 0
-    for i in countdown(payload.len - 1, 0):
-      check payload[i] == c.read
-
-  test_plain @[new_data 1234, new_data "abcd"]
-
-  proc test_array(payload: seq[Data]) =
-    let c = "../test.bin".new_continent
-    c.array
-    for p in payload:
-      c.write p
-    c.`end`
-    c.rpos = 0
-    for i, p in payload:
-      check c[i] == p
-
-  test_array @[new_data 1234, new_data "abcd"]
+    with c:
+      array
+      write 1234
+      array
+      write 1234
+      write "abcd"
+      `end`
+      write "abcd"
+      `end`
+    check c[0].read == new_data 1234
+    check c[1][0].read == new_data 1234
+    check c[1][1].read == new_data "abcd"
+    check c[2].read == new_data "abcd"
 
 if is_main_module:
   test()
