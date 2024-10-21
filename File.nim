@@ -107,6 +107,9 @@ proc read_chars(c: Continent, n: Natural): string =
 proc read_byte(c: Continent): uint8 =
   c.read_bytes(1)[0]
 
+proc write_bytes(c: Continent, b: seq[uint8]) =
+  do_assert c.file.write_bytes(b, 0, b.len) == b.len
+
 proc write*(c: Continent, i: Natural, write_type: bool = true) =
   let p = block:
     var r = i.to_seq
@@ -114,7 +117,7 @@ proc write*(c: Continent, i: Natural, write_type: bool = true) =
     if write_type:
       r.add(uint8(dkNatural))
     r
-  do_assert c.file.write_bytes(p, 0, p.len) == p.len
+  c.write_bytes p
 
 proc read_natural*(c: Continent): Natural =
   to_natural c.read_bytes Natural c.read_byte
@@ -161,9 +164,6 @@ proc skip(c: Continent) =
 proc array(c: Continent) =
   c.stack.add c.file.get_file_pos
 
-proc write_link(c: Continent, link: Natural) =
-  c.write link
-
 proc `end`(c: Continent) =
   let begin = c.stack.pop
   let max_pos = c.pos
@@ -177,7 +177,8 @@ proc `end`(c: Continent) =
       break
 
     c.pos = cur_write
-    c.write_link cur_read
+    c.write_bytes to_seq cur_read
+    cur_write = c.pos
 
     c.pos = cur_read
     c.skip
@@ -185,9 +186,23 @@ proc `end`(c: Continent) =
     length += 1
 
   c.pos = cur_write
-  c.write length
-  c.write max_pos
+  c.write(length, write_type = false)
+  let link_size = to_seq len to_seq max_pos
+  if link_size.len > 1:
+    raise new_exception(ValueError, "Link size " & $link_size & " is too big for one byte")
+  c.write_bytes link_size
   c.write dkArray
+
+proc `[]`(c: Continent, i: int64): Data =
+  let init_pos = c.pos
+  let a = c.read
+  if a.kind != dkArray:
+    raise new_exception(ValueError, "Indexing only supported for dkArray data kind")
+  if i >= a.len:
+    raise new_exception(IndexDefect, "Index " & $i & " is out of bound " & $a.len)
+  c.rmove a.link_size * i
+  result = c.read_link a.link_size
+  c.pos = init_pos
 
 proc test() =
   proc test(payload: seq[Data]) =
@@ -208,8 +223,8 @@ proc test() =
       write "abcd"
       `end`
     c.rpos = 0
-    let r = c.read
-    check r.kind == dkArray
+    check c[0].nat == 1234
+    check c[1].str == "abcd"
 
 if is_main_module:
   test()
