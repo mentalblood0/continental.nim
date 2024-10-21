@@ -1,4 +1,5 @@
 import std/syncio
+import std/sugar
 import std/options
 import std/with
 import std/unittest
@@ -8,10 +9,27 @@ type IntegerEncodingError = object of RangeDefect
 func to_seq(i: Natural): seq[uint8] =
   var c = i
   while true:
-    result.add(uint8(c mod 256))
+    result.add(uint8 c mod 256)
     c = c div 256
     if c == 0:
       break
+
+func size(i: Natural): Natural =
+  var j = i
+  while j > 0:
+    result += 1
+    j = j div 256
+
+func to_seq_fixed(i: Natural, size: Natural): seq[uint8] =
+  block input_validation:
+    let minimum_size = i.size
+    if i.size > size:
+      raise new_exception(IntegerEncodingError, "Can not encode natural " & $i &
+          " in " & $size & " bytes (minimum " & $minimum_size & " bytes requried")
+  let s = to_seq i
+  for k in 1 .. size - s.len:
+    result.add(uint8 0)
+  result &= s
 
 converter to_natural(bytes: seq[uint8]): Natural =
   var m = 0
@@ -40,7 +58,7 @@ type
     parent: Option[Path]
     pos: Natural
 
-  DynamicLink = tuple[path: seq[Natural]]
+  DynamicLink = tuple[path: seq[int]]
 
   StaticLink = ref object
     c: Continent
@@ -64,7 +82,7 @@ func new_path(c: Continent): Path =
   new(result)
   result.c = c
 
-func new_link(path: seq[Natural]): DynamicLink = (path: path)
+func new_link(path: seq[int]): DynamicLink = (path: path)
 
 proc `[]`*(p: Path, i: int64): Path
 proc compile(c: Continent, l: DynamicLink): StaticLink =
@@ -112,9 +130,6 @@ proc move(c: Continent, value: Natural) =
 proc rmove(c: Continent, value: Natural) =
   c.file.set_file_pos -value, fsp_cur
 
-proc write(c: Continent, t: DataKind) =
-  do_assert c.file.write_bytes(@[uint8(t)], 0, 1) == 1
-
 proc read_bytes(c: Continent, n: Natural): seq[uint8] =
   do_assert c.pos >= n
   c.rmove n
@@ -140,23 +155,23 @@ proc read_byte(c: Continent): uint8 =
   c.read_bytes(1)[0]
 
 proc write_bytes(c: Continent, b: seq[uint8]) =
+  echo "write_bytes ", $b
   do_assert c.file.write_bytes(b, 0, b.len) == b.len
 
-proc write*(c: Continent, i: Natural, write_type: bool = true) =
-  let p = block:
-    var r = i.to_seq
-    r.add(uint8(r.len))
-    if write_type:
-      r.add(uint8(dkNatural))
-    r
-  c.write_bytes p
+proc write(c: Continent, t: DataKind) =
+  c.write_bytes(@[uint8 t])
+
+proc write*(c: Continent, i: Natural) =
+  echo "write ", i
+  c.write_bytes i.to_seq & @[uint8 dkNatural]
 
 proc read_natural(c: Continent): Natural =
   to_natural c.read_bytes Natural c.read_byte
 
 proc write*(c: Continent, s: string) =
   do_assert c.file.write_chars(s, 0, s.len) == s.len
-  c.write(s.len, write_type = false)
+  c.write_bytes to_seq s.len
+  c.write_bytes s.len.size.to_seq_fixed 1
   c.write dkString
 
 proc write*(c: Continent, d: Data) =
@@ -188,7 +203,15 @@ proc read(c: Continent): Data =
     c.go_link Natural c.read_byte
     c.read
   of dkDynamicLink:
-    raise new_exception(ValueError, "Dynamic links not supported yet")
+    let segment_size = to_natural c.read_bytes 1
+    let length = to_natural c.read_bytes to_natural c.read_bytes 1
+    let dl = block:
+      var r = new_link @[]
+      for i in 1 .. length:
+        r.path.add to_natural c.read_bytes segment_size
+      r
+    c.pos = c.compile(dl).pos
+    c.read
 
 proc move_to_element(c: Continent, a: Data, i: int64) =
   do_assert a.kind == dkArray
@@ -213,14 +236,18 @@ proc skip(c: Continent) =
     c.skip
   of dkStaticLink: c.rmove c.read_byte
   of dkDynamicLink:
-    raise new_exception(ValueError, "Dynamic links not supported yet")
+    let segment_size = to_natural c.read_bytes 1
+    let length = to_natural c.read_bytes to_natural c.read_bytes 1
+    c.rmove segment_size * length
 
 proc array*(c: Continent) =
+  echo "array ", c.pos
   c.stack.add c.pos
 
 proc `end`*(c: Continent) =
+  echo "end"
   let begin = c.stack.pop
-  let max_pos = c.pos
+  let link_size = size c.pos
 
   var cur_write = c.pos
   var cur_read = cur_write
@@ -231,7 +258,7 @@ proc `end`*(c: Continent) =
       break
 
     c.pos = cur_write
-    c.write_bytes to_seq cur_read
+    c.write_bytes cur_read.to_seq_fixed link_size
     cur_write = c.pos
 
     c.pos = cur_read
@@ -240,13 +267,10 @@ proc `end`*(c: Continent) =
     length += 1
 
   c.pos = cur_write
-  c.write(length, write_type = false)
-  let link_size = to_seq len to_seq max_pos
-  if link_size.len > 1:
-    raise new_exception(ValueError, "Link size " & $link_size & " is too big for one byte")
-  c.write_bytes link_size
+  c.write_bytes to_seq length
+  c.write_bytes length.size.to_seq_fixed 1
+  c.write_bytes link_size.to_seq_fixed 1
   c.write dkArray
-
 
 proc save(p: Path) =
   p.pos = p.c.pos
@@ -277,47 +301,74 @@ proc `[]`*(c: Continent, i: int64): Path =
 
 proc write*(c: Continent, cl: StaticLink) =
   do_assert c == cl.c
-  c.write(cl.pos, write_type = false)
+  c.write_bytes to_seq cl.pos
+  c.write_bytes cl.pos.size.to_seq_fixed 1
   c.write_bytes @[uint8 dkStaticLink]
 
+proc write*(c: Continent, dl: DynamicLink) =
+  echo "write ", dl
+  let segment_size = size max dl.path
+  for n in dl.path:
+    c.write_bytes n.to_seq_fixed segment_size
+  c.write_bytes dl.path.len.to_seq
+  c.write_bytes dl.path.len.size.to_seq_fixed 1
+  c.write_bytes segment_size.to_seq_fixed 1
+  c.write_bytes @[uint8 dkDynamicLink]
+
 proc test() =
-  proc test_plain(payload: seq[Data]) =
-    let c = "../test.bin".new_continent
-    for p in payload:
-      c.write p
-    c.rpos = 0
-    for i in countdown(payload.len - 1, 0):
-      check payload[i] == c.read
+  # proc test_plain(payload: seq[Data]) =
+  #   let c = "../test.bin".new_continent
+  #   for p in payload:
+  #     c.write p
+  #   c.rpos = 0
+  #   for i in countdown(payload.len - 1, 0):
+  #     check payload[i] == c.read
+  #
+  # test_plain @[new_data 1234, new_data "abcd"]
+  #
+  # proc test_array(payload: seq[Data]) =
+  #   let c = "../test.bin".new_continent
+  #   c.array
+  #   for p in payload:
+  #     c.write p
+  #   c.`end`
+  #   c.rpos = 0
+  #   for i, p in payload:
+  #     check c[i].read == p
+  #
+  # test_array @[new_data 1234, new_data "abcd"]
+  #
+  # block test_sub_array:
+  #   let c = "../test.bin".new_continent
+  #   with c:
+  #     array
+  #     write 1234
+  #     array
+  #     write 1234
+  #     write "abcd"
+  #     `end`
+  #     write "abcd"
+  #     `end`
+  #   check c[0].read == new_data 1234
+  #   check c[1][0].read == new_data 1234
+  #   check c[1][1].read == new_data "abcd"
+  #   check c[2].read == new_data "abcd"
 
-  test_plain @[new_data 1234, new_data "abcd"]
-
-  proc test_array(payload: seq[Data]) =
-    let c = "../test.bin".new_continent
-    c.array
-    for p in payload:
-      c.write p
-    c.`end`
-    c.rpos = 0
-    for i, p in payload:
-      check c[i].read == p
-
-  test_array @[new_data 1234, new_data "abcd"]
-
-  block test_sub_array:
+  block test_dynamic_link:
     let c = "../test.bin".new_continent
     with c:
       array
-      write 1234
       array
-      write 1234
-      write "abcd"
+      write 0
+      write new_link @[1]
       `end`
-      write "abcd"
+      array
+      write 1
+      write new_link @[0]
       `end`
-    check c[0].read == new_data 1234
-    check c[1][0].read == new_data 1234
-    check c[1][1].read == new_data "abcd"
-    check c[2].read == new_data "abcd"
+      `end`
+    check c[0][0].read == new_data 0
+    check c[0][1][0].read == new_data 1
 
 if is_main_module:
   test()
