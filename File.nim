@@ -242,27 +242,27 @@ proc `[]`(c: Continent, i: int64): Path =
   result = result[i]
 
 proc test() =
-  # proc test_plain(payload: seq[Data]) =
-  #   let c = "../test.bin".new_continent
-  #   for p in payload:
-  #     c.write p
-  #   c.rpos = 0
-  #   for i in countdown(payload.len - 1, 0):
-  #     check payload[i] == c.read
-  #
-  # test_plain @[new_data 1234, new_data "abcd"]
-  #
-  # proc test_array(payload: seq[Data]) =
-  #   let c = "../test.bin".new_continent
-  #   c.array
-  #   for p in payload:
-  #     c.write p
-  #   c.`end`
-  #   c.rpos = 0
-  #   for i, p in payload:
-  #     check c[i] == p
-  #
-  # test_array @[new_data 1234, new_data "abcd"]
+  proc test_plain(payload: seq[Data]) =
+    let c = "../test.bin".new_continent
+    for p in payload:
+      c.write p
+    c.rpos = 0
+    for i in countdown(payload.len - 1, 0):
+      check payload[i] == c.read
+
+  test_plain @[new_data 1234, new_data "abcd"]
+
+  proc test_array(payload: seq[Data]) =
+    let c = "../test.bin".new_continent
+    c.array
+    for p in payload:
+      c.write p
+    c.`end`
+    c.rpos = 0
+    for i, p in payload:
+      check c[i] == p
+
+  test_array @[new_data 1234, new_data "abcd"]
 
   block test_sub_array:
     let c = "../test.bin".new_continent
