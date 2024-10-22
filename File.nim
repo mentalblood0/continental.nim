@@ -162,7 +162,7 @@ proc write(c: Continent, t: DataKind) =
 
 proc write*(c: Continent, i: Natural) =
   echo "write ", i
-  c.write_bytes i.to_seq & @[uint8 dkNatural]
+  c.write_bytes i.to_seq & i.size.to_seq & @[uint8 dkNatural]
 
 proc read_natural(c: Continent): Natural =
   to_natural c.read_bytes Natural c.read_byte
@@ -171,8 +171,8 @@ proc write*(c: Continent, s: string) =
   let b = block:
     var r: seq[uint8]
     r.set_len s.len
-    for c in s:
-      r &= uint8 c
+    for i, c in s:
+      r[i] = uint8 c
     r
   c.write_bytes b
   c.write_bytes to_seq s.len
