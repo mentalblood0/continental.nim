@@ -1,4 +1,5 @@
 import std/syncio
+import std/sets
 import std/options
 import std/with
 import std/unittest
@@ -51,19 +52,14 @@ type
     dkNatural
     dkString
     dkArray
-    dkStaticLink
     dkDynamicLink
 
   Path* = ref object
     c: Continent
-    parent: Option[Path]
-    pos: Natural
+    p: OrderedSet[Natural]
+    last: Natural
 
   DynamicLink = tuple[path: seq[int]]
-
-  StaticLink = ref object
-    c: Continent
-    pos: Natural
 
   DataObj = object
     case kind*: DataKind
@@ -72,28 +68,13 @@ type
     of dkArray:
       len*: Natural
       link_size: Natural
-    of dkStaticLink: pos*: Natural
     of dkDynamicLink: dl*: DynamicLink
 
   Data = ref DataObj
 
-func new_path(c: Continent): Path =
-  new(result)
-  result.c = c
-
 func new_link(path: seq[int]): DynamicLink =
   do_assert path.len > 0
   (path: path)
-
-proc `[]`*(c: Continent, i: int): Path
-proc `[]`*(p: Path, i: int): Path
-proc compile(c: Continent, l: DynamicLink): StaticLink =
-  new(result)
-  result.c = c
-  var path = c[l.path[0]]
-  for i in 1 ..< l.path.len:
-    path = path[l.path[i]]
-  result.pos = path.pos
 
 func new_data*(n: Natural): Data =
   Data(kind: dkNatural, nat: n)
@@ -188,31 +169,37 @@ proc go_link(c: Continent, size: Natural) =
   let l = c.read_bytes size
   c.pos = to_natural l
 
+proc `[]`*(c: Continent, i: int): Path
+proc `[]`*(p: Path, i: int): Path
 proc read(c: Continent): Data =
-  let t = DataKind c.read_byte
-  case t
-  of dkNatural:
-    Data(kind: dkNatural, nat: c.read_natural)
-  of dkString:
-    Data(kind: dkString, str: c.read_chars c.read_natural)
-  of dkArray:
-    let ls = Natural c.read_byte
-    let l = c.read_natural
-    Data(kind: dkArray, len: l, link_size: ls)
-  of dkStaticLink:
-    c.go_link Natural c.read_byte
-    c.read
-  of dkDynamicLink:
-    let segment_size = to_natural c.read_bytes 1
-    let length = to_natural c.read_bytes to_natural c.read_bytes 1
-    let dl = block:
-      var p: seq[int]
-      p.set_len length
-      for i in 0 ..< length:
-        p[i] = to_natural c.read_bytes segment_size
-      new_link p
-    c.pos = c.compile(dl).pos
-    c.read
+  var path: OrderedSet[Natural]
+  while true:
+    if path.contains_or_incl c.pos:
+      raise new_exception(ValueError, "Recursion detected, positions stack is " & $path)
+    let t = DataKind c.read_byte
+    case t
+    of dkNatural:
+      return Data(kind: dkNatural, nat: c.read_natural)
+    of dkString:
+      return Data(kind: dkString, str: c.read_chars c.read_natural)
+    of dkArray:
+      let ls = Natural c.read_byte
+      let l = c.read_natural
+      return Data(kind: dkArray, len: l, link_size: ls)
+    of dkDynamicLink:
+      let segment_size = to_natural c.read_bytes 1
+      let length = to_natural c.read_bytes to_natural c.read_bytes 1
+      let dl = block:
+        var p: seq[int]
+        p.set_len length
+        for i in 0 ..< length:
+          p[i] = to_natural c.read_bytes segment_size
+        new_link p
+      c.pos = block:
+        var path = c[dl.path[0]]
+        for i in 1 ..< dl.path.len:
+          path = path[dl.path[i]]
+        path.last
 
 proc move_to_element(c: Continent, a: Data, i: int64) =
   do_assert a.kind == dkArray
@@ -235,7 +222,6 @@ proc skip(c: Continent) =
     let a = c.read
     c.go_link a.link_size
     c.skip
-  of dkStaticLink: c.rmove c.read_byte
   of dkDynamicLink:
     let segment_size = to_natural c.read_bytes 1
     let length = to_natural c.read_bytes to_natural c.read_bytes 1
@@ -272,32 +258,29 @@ proc `end`*(c: Continent) =
   c.write dkArray
 
 proc read*(p: Path): Data =
-  p.c.pos = p.pos
-  p.load
+  p.c.pos = p.last
   p.c.read
 
+proc add(p: var Path) =
+  let a = p.c.pos
+  p.p.incl p.last
+  do_assert a notin p.p
+  p.last = a
+
 proc `[]`*(p: Path, i: int): Path =
-  new(result)
   let a = p.c.read
   if a.kind != dkArray:
     raise new_exception(ValueError, "Indexing only supported for data of dkArray kind")
-  result.c = p.c
-  result.parent = some p
-  result.c.move_to_element(a, i)
+  result = p
+  result.c.move_to_element a, i
   result.c.go_link a.link_size
-  result.pos = result.c.pos
+  result.add
 
 proc `[]`*(c: Continent, i: int): Path =
   new(result)
   reset c
   result.c = c
   result = result[i]
-
-proc write*(c: Continent, cl: StaticLink) =
-  do_assert c == cl.c
-  c.write_bytes to_seq cl.pos
-  c.write_bytes cl.pos.size.to_seq_fixed 1
-  c.write_bytes @[uint8 dkStaticLink]
 
 proc write*(c: Continent, dl: DynamicLink) =
   let segment_size = size max dl.path
@@ -361,6 +344,30 @@ proc test() =
       `end`
     check c[0][1][0].read == new_data 1
     check c[1][1][0].read == new_data 0
+
+  block test_recursive_link:
+    let c = "../test.bin".new_continent
+    with c:
+      array
+      write new_link @[0]
+      `end`
+    discard c[0]
+    expect ValueError:
+      discard c[0].read
+    expect ValueError:
+      discard c[0][0]
+
+  block test_recursive_links:
+    let c = "../test.bin".new_continent
+    with c:
+      array
+      write new_link @[1]
+      write new_link @[0]
+      `end`
+    for i in 0 .. 1:
+      discard c[i]
+      expect ValueError:
+        discard c[i].read
 
 if is_main_module:
   test()
