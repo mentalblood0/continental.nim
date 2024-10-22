@@ -19,6 +19,8 @@ func size(i: Natural): Natural =
   while j > 0:
     result += 1
     j = j div 256
+  if result == 0:
+    result = 1
 
 func to_seq_fixed(i: Natural, size: Natural): seq[uint8] =
   block input_validation:
