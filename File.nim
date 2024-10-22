@@ -145,8 +145,7 @@ proc read_chars(c: Continent, n: Natural): string =
   c.rmove n
   result = block:
     var r: string
-    for i in 1 .. n:
-      r &= 'a'
+    r.set_len(n)
     do_assert c.file.read_chars(r) == r.len
     r
   c.rmove n
@@ -169,7 +168,13 @@ proc read_natural(c: Continent): Natural =
   to_natural c.read_bytes Natural c.read_byte
 
 proc write*(c: Continent, s: string) =
-  do_assert c.file.write_chars(s, 0, s.len) == s.len
+  let b = block:
+    var r: seq[uint8]
+    r.set_len s.len
+    for c in s:
+      r &= uint8 c
+    r
+  c.write_bytes b
   c.write_bytes to_seq s.len
   c.write_bytes s.len.size.to_seq_fixed 1
   c.write dkString
