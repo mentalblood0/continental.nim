@@ -14,12 +14,12 @@ func to_seq(i: Natural): seq[uint8] =
       break
 
 func size(i: Natural): Natural =
+  if i == 0:
+    return 1
   var j = i
   while j > 0:
     result += 1
     j = j div 256
-  if result == 0:
-    result = 1
 
 func to_seq_fixed(i: Natural, size: Natural): seq[uint8] =
   block input_validation:
@@ -77,8 +77,6 @@ type
 
   Data = ref DataObj
 
-  NotSupported* = object of ValueError
-
 func new_path(c: Continent): Path =
   new(result)
   result.c = c
@@ -125,8 +123,8 @@ proc pos(c: Continent): Natural =
 proc `pos=`(c: Continent, value: Natural) =
   c.file.set_file_pos value
 
-proc `rpos=`(c: Continent, value: Natural) =
-  c.file.set_file_pos -value, fsp_end
+proc reset(c: Continent) =
+  c.file.set_file_pos 0, fsp_end
 
 proc move(c: Continent, value: Natural) =
   c.file.set_file_pos value, fsp_cur
@@ -135,7 +133,6 @@ proc rmove(c: Continent, value: Natural) =
   c.file.set_file_pos -value, fsp_cur
 
 proc read_bytes(c: Continent, n: Natural): seq[uint8] =
-  do_assert c.pos >= n
   c.rmove n
   result = block:
     var r: seq[uint8]
@@ -145,14 +142,10 @@ proc read_bytes(c: Continent, n: Natural): seq[uint8] =
   c.rmove n
 
 proc read_chars(c: Continent, n: Natural): string =
-  do_assert c.pos >= n
-  c.rmove n
-  result = block:
-    var r: string
-    r.set_len(n)
-    do_assert c.file.read_chars(r) == r.len
-    r
-  c.rmove n
+  result.set_len n
+  let bytes = c.read_bytes n
+  for i, b in bytes:
+    result[i] = char b
 
 proc read_byte(c: Continent): uint8 =
   c.read_bytes(1)[0]
@@ -278,13 +271,8 @@ proc `end`*(c: Continent) =
   c.write_bytes link_size.to_seq_fixed 1
   c.write dkArray
 
-proc save(p: Path) =
-  p.pos = p.c.pos
-
-proc load(p: Path) =
-  p.c.pos = p.pos
-
 proc read*(p: Path): Data =
+  p.c.pos = p.pos
   p.load
   p.c.read
 
@@ -297,11 +285,11 @@ proc `[]`*(p: Path, i: int): Path =
   result.parent = some p
   result.c.move_to_element(a, i)
   result.c.go_link a.link_size
-  result.save
+  result.pos = result.c.pos
 
 proc `[]`*(c: Continent, i: int): Path =
   new(result)
-  c.rpos = 0
+  reset c
   result.c = c
   result = result[i]
 
@@ -325,7 +313,7 @@ proc test() =
     let c = "../test.bin".new_continent
     for p in payload:
       c.write p
-    c.rpos = 0
+    reset c
     for i in countdown(payload.len - 1, 0):
       check payload[i] == c.read
 
@@ -337,7 +325,6 @@ proc test() =
     for p in payload:
       c.write p
     c.`end`
-    c.rpos = 0
     for i, p in payload:
       check c[i].read == p
 
