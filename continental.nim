@@ -26,8 +26,11 @@ func to_seq_fixed(i: Natural, size: Natural): seq[uint8] =
   block input_validation:
     let minimum_size = i.size
     if i.size > size:
-      raise new_exception(IntegerEncodingError, "Can not encode natural " & $i &
-          " in " & $size & " bytes (minimum " & $minimum_size & " bytes requried")
+      raise new_exception(
+        IntegerEncodingError,
+        "Can not encode natural " & $i & " in " & $size & " bytes (minimum " &
+          $minimum_size & " bytes requried",
+      )
   let s = to_seq i
   for k in 1 .. size - s.len:
     result.add(uint8 0)
@@ -91,7 +94,8 @@ func `==`*(a: Data, b: Data): bool =
   of dkString:
     a.str == b.str
   else:
-    raise new_exception(ValueError, "Comparing data of kind " & $a.kind & " not supported")
+    raise
+      new_exception(ValueError, "Comparing data of kind " & $a.kind & " not supported")
 
 proc new_continent*(path: string): Continent =
   new(result)
@@ -162,8 +166,9 @@ proc write*(c: Continent, d: Data) =
   of dkString:
     c.write d.str
   else:
-    raise new_exception(ValueError, "Direct writing of data of kind " &
-        $d.kind & " not supported")
+    raise new_exception(
+      ValueError, "Direct writing of data of kind " & $d.kind & " not supported"
+    )
 
 proc go_link(c: Continent, size: Natural) =
   let l = c.read_bytes size
@@ -215,8 +220,10 @@ proc move_to_element(c: Continent, a: Data, i: int64) =
 proc skip(c: Continent) =
   let t = DataKind c.read_byte
   case t
-  of dkNatural: c.rmove c.read_byte
-  of dkString: c.rmove c.read_natural
+  of dkNatural:
+    c.rmove c.read_byte
+  of dkString:
+    c.rmove c.read_natural
   of dkArray:
     c.move 1
     let a = c.read
