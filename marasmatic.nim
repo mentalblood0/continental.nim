@@ -75,29 +75,29 @@ block read_file:
         next.add @[]
         dict[w.content] = dict.len
       if is_some prev:
-        # dump dict
-        # dump get prev
-        # dump next
         if dict[get prev] >= len next:
           next.add Table[Natural, Natural]()
         if dict[w.content] notin next[dict[get prev]]:
           next[dict[get prev]][dict[w.content]] = 0
         next[dict[get prev]][dict[w.content]] += 1
       prev = some w.content
-      if dict.len == 100:
-        break
     else:
       discard
 
 args.o.array
 args.o.array
-var n = 0
 for k in dict.keys:
-  # echo k
   args.o.write $k
-  n += 1
-  if n == 100:
-    break
+args.o.`end`
+args.o.array
+for prev in next:
+  args.o.array
+  for n, freq in prev.pairs:
+    args.o.array
+    args.o.write n
+    args.o.write freq
+    args.o.`end`
+  args.o.`end`
 args.o.`end`
 args.o.`end`
 
