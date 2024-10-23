@@ -1,5 +1,4 @@
 import std/syncio
-import std/sugar
 import std/sets
 import std/options
 import std/with
@@ -32,10 +31,9 @@ func to_seq_fixed(i: Natural, size: Natural): seq[uint8] =
         "Can not encode natural " & $i & " in " & $size & " bytes (minimum " &
           $minimum_size & " bytes requried",
       )
-  let s = to_seq i
-  for k in 1 .. size - s.len:
+  result = to_seq i
+  for k in 1 .. size - result.len:
     result.add(uint8 0)
-  result &= s
 
 converter to_natural(bytes: seq[uint8]): Natural =
   var m = 0
@@ -172,9 +170,7 @@ proc write*(c: Continent, d: Data) =
     )
 
 proc go_link(c: Continent, size: Natural) =
-  let l = c.read_bytes size
-  dump l
-  c.pos = to_natural l
+  c.pos = to_natural c.read_bytes size
 
 proc `[]`*(c: Continent, i: int): Path
 proc `[]`*(p: Path, i: int): Path
@@ -221,7 +217,6 @@ proc move_to_element(c: Continent, a: Data, i: int64) =
 
 proc skip(c: Continent) =
   while true:
-    echo "skip ", c.pos
     let t = DataKind c.read_byte
     case t
     of dkNatural:
@@ -230,10 +225,7 @@ proc skip(c: Continent) =
       c.rmove c.read_natural
     of dkArray:
       c.move 1
-      let a = c.read
-      dump a.link_size
-      dump a.len
-      c.go_link a.link_size
+      c.go_link c.read.link_size
       continue
     of dkDynamicLink:
       let segment_size = to_natural c.read_bytes 1
@@ -398,7 +390,7 @@ proc test() =
     c.array
     c.array
     for i in 1 .. 100:
-      c.write i
+      c.write 1
     c.`end`
     c.`end`
 
