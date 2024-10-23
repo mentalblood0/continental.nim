@@ -1,4 +1,5 @@
 import std/syncio
+import std/sugar
 import std/sets
 import std/options
 import std/with
@@ -172,6 +173,7 @@ proc write*(c: Continent, d: Data) =
 
 proc go_link(c: Continent, size: Natural) =
   let l = c.read_bytes size
+  dump l
   c.pos = to_natural l
 
 proc `[]`*(c: Continent, i: int): Path
@@ -218,21 +220,26 @@ proc move_to_element(c: Continent, a: Data, i: int64) =
   c.rmove a.link_size * ni
 
 proc skip(c: Continent) =
-  let t = DataKind c.read_byte
-  case t
-  of dkNatural:
-    c.rmove c.read_byte
-  of dkString:
-    c.rmove c.read_natural
-  of dkArray:
-    c.move 1
-    let a = c.read
-    c.go_link a.link_size
-    c.skip
-  of dkDynamicLink:
-    let segment_size = to_natural c.read_bytes 1
-    let length = to_natural c.read_bytes to_natural c.read_bytes 1
-    c.rmove segment_size * length
+  while true:
+    echo "skip ", c.pos
+    let t = DataKind c.read_byte
+    case t
+    of dkNatural:
+      c.rmove c.read_byte
+    of dkString:
+      c.rmove c.read_natural
+    of dkArray:
+      c.move 1
+      let a = c.read
+      dump a.link_size
+      dump a.len
+      c.go_link a.link_size
+      continue
+    of dkDynamicLink:
+      let segment_size = to_natural c.read_bytes 1
+      let length = to_natural c.read_bytes to_natural c.read_bytes 1
+      c.rmove segment_size * length
+    break
 
 proc array*(c: Continent) =
   c.stack.add c.pos
@@ -375,6 +382,25 @@ proc test() =
       discard c[i]
       expect ValueError:
         discard c[i].read
+
+  block test_array_in_array:
+    let c = "../test.bin".new_continent
+    with c:
+      array
+      array
+      write 1
+      `end`
+      `end`
+    check c[0][0].read == new_data 1
+
+  block test_large_array_in_array:
+    let c = "../test.bin".new_continent
+    c.array
+    c.array
+    for i in 1 .. 100:
+      c.write i
+    c.`end`
+    c.`end`
 
 if is_main_module:
   test()
