@@ -67,14 +67,10 @@ var next: seq[Table[Natural, Natural]]
 block read_file:
   var prev: Option[seq[Rune]]
   for w in args.i.words:
-    dump w
-    dump prev
-    dump dict
-    dump next
     case w.kind
     of wkNormal:
       if w.content notin dict:
-        next.add @[]
+        next.add Table[Natural, Natural]()
         dict[w.content] = dict.len
       if is_some prev:
         if dict[get prev] >= len next:
@@ -95,6 +91,8 @@ for k in dict.keys:
 args.o.`end`
 args.o.array
 for prev in next:
+  if prev.len == 0:
+    continue
   args.o.array
   for n, freq in prev.pairs:
     args.o.array
