@@ -17,7 +17,7 @@ let args = block:
   for kind, key, val in getopt():
     case kind
     of cmdLongOption, cmdShortOption:
-      case key:
+      case key
       of "i", "input":
         input_path = val
       of "o", "output":
@@ -26,21 +26,19 @@ let args = block:
       continue
   (i: open(input_path, fm_read), o: new_continent(output_path))
 
-const alphabet = @["ф", "ы", "в", "а", "п", "р", "о", "л", "д", "ж",
-    "я", "ч", "с", "м", "и", "т", "ь", "б", "ю", "э", "ъ", "й",
-    "ц", "у", "к", "е", "н", "г", "ш", "щ", "з", "х",
-    "ё"].map c => c.to_runes[0]
+const alphabet = @[
+  "ф", "ы", "в", "а", "п", "р", "о", "л", "д", "ж", "я", "ч", "с", "м",
+  "и", "т", "ь", "б", "ю", "э", "ъ", "й", "ц", "у", "к", "е", "н", "г",
+  "ш", "щ", "з", "х", "ё",
+].map c => c.to_runes[0]
 const words_separators = @[" ", ",", ":"].map c => c.to_runes[0]
 const sentences_separators = @[".", "!", "?", ";"].map c => c.to_runes[0]
 
 iterator runes(f: File): Rune =
-  var buffer: seq[char]
-  buffer.set_len 2
-
-  while true:
-    if 0 == f.read_chars buffer:
-      break
-    yield buffer.to_runes[0].to_lower
+  var buf: string
+  while f.read_line buf:
+    for r in buf.to_runes:
+      yield r.to_lower
 
 type
   WordKind = enum
@@ -69,6 +67,10 @@ var next: seq[Table[Natural, Natural]]
 block read_file:
   var prev: Option[seq[Rune]]
   for w in args.i.words:
+    dump w
+    dump prev
+    dump dict
+    dump next
     case w.kind
     of wkNormal:
       if w.content notin dict:
@@ -81,8 +83,10 @@ block read_file:
           next[dict[get prev]][dict[w.content]] = 0
         next[dict[get prev]][dict[w.content]] += 1
       prev = some w.content
-    else:
+    of wkWordsSep:
       discard
+    of wkSentSep:
+      prev = none seq[Rune]
 
 args.o.array
 args.o.array
