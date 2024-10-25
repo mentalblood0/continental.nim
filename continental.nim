@@ -274,7 +274,7 @@ proc add(p: var Path) =
   p.last = a
 
 proc `[]`*(p: Path, i: int): Path =
-  let a = p.c.read
+  let a = p.read
   if a.kind != dkArray:
     raise new_exception(ValueError, "Indexing only supported for data of dkArray kind")
   result = p
@@ -286,6 +286,7 @@ proc `[]`*(c: Continent, i: int): Path =
   new(result)
   reset c
   result.c = c
+  result.last = c.pos
   result = result[i]
 
 proc write*(c: Continent, dl: DynamicLink) =
@@ -393,6 +394,22 @@ proc test() =
       c.write 1
     c.`end`
     c.`end`
+
+  block test_multiple_paths:
+    let c = "../test.bin".new_continent
+    with c:
+      array
+      write 1234
+      array
+      write 1234
+      write "abcd"
+      `end`
+      write "abcd"
+      `end`
+    let a = c[0]
+    let b = c[1]
+    check a.read == new_data 1234
+    check b[1].read == new_data "abcd"
 
 if is_main_module:
   test()
