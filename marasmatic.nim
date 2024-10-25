@@ -6,6 +6,8 @@ import std/unicode
 import std/sugar
 import std/sequtils
 import std/times
+import std/sets
+import std/setutils
 
 import continental
 
@@ -26,13 +28,13 @@ let args = block:
       continue
   (i: open(input_path, fm_read), o: new_continent(output_path))
 
-const alphabet = @[
+const alphabet = to_hash_set @[
   "ф", "ы", "в", "а", "п", "р", "о", "л", "д", "ж", "я", "ч", "с", "м",
   "и", "т", "ь", "б", "ю", "э", "ъ", "й", "ц", "у", "к", "е", "н", "г",
   "ш", "щ", "з", "х", "ё",
 ].map c => c.to_runes[0]
-const words_separators = @[" ", ",", ":"].map c => c.to_runes[0]
-const sentences_separators = @[".", "!", "?", ";"].map c => c.to_runes[0]
+const words_separators = to_hash_set @[" ", ",", ":"].map c => c.to_runes[0]
+const sentences_separators = to_hash_set @[".", "!", "?", ";"].map c => c.to_runes[0]
 
 iterator runes(f: File): Rune =
   var buf: string
