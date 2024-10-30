@@ -6,7 +6,6 @@ import std/unicode
 import std/tables
 
 import common
-import natural
 
 type EncodingDict* = tuple[rune_to_code: Table[Rune, uint8],
     code_to_rune: Table[uint8, Rune]]

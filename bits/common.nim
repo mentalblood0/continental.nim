@@ -32,11 +32,11 @@ func `[]`*(b: Bits, i: Natural): bool =
   b.buffer[i div 8].test_bit i mod 8
 
 iterator items*(b: Bits): bool =
-  for i in 0 .. b.len:
+  for i in 0 ..< b.len:
     yield b[i]
 
 iterator pairs*(b: Bits): tuple[key: int, val: bool] =
-  for i in 0 .. b.len:
+  for i in 0 ..< b.len:
     yield (key: i, val: b[i])
 
 iterator batches*(bits: Bits, size: int): seq[bool] =
