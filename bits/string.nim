@@ -10,17 +10,17 @@ import common
 type EncodingDict* = tuple[rune_to_code: Table[Rune, uint8],
     code_to_rune: Table[uint8, Rune]]
 
+func len(d: EncodingDict): uint8 = uint8 1 + len d.rune_to_code
+
 func new_encoding_dict*(runes: seq[Rune]): EncodingDict =
   for r in runes:
-    let code = uint8 len result.rune_to_code
+    let code = uint8 len result
     result.rune_to_code[r] = code
     result.code_to_rune[code] = r
 
 func contains(d: EncodingDict, r: Rune): bool = r in d.rune_to_code
 
-func len(d: EncodingDict): uint8 = uint8 len d.rune_to_code
-
-func code_size(d: EncodingDict): uint8 = uint8 fast_log2 len d
+func code_size(d: EncodingDict): uint8 = uint8 1 + fast_log2 len d
 
 func code(d: EncodingDict, r: Rune): uint8 = d.rune_to_code[r]
 func rune(d: EncodingDict, code: uint8): Rune = d.code_to_rune[code]
@@ -35,6 +35,8 @@ func new_bits*(runes: seq[Rune], d: EncodingDict): Bits =
           result.add_1
         else:
           result.add_0
+  for i in 0 ..< d.code_size.int:
+    result.add_0
 
 func new_runes*(bits: Bits, d: EncodingDict): seq[Rune] =
   for batch in bits.batches int code_size d:
@@ -44,6 +46,8 @@ func new_runes*(bits: Bits, d: EncodingDict): seq[Rune] =
         if b:
           r.set_bit i
       r
+    if code == 0:
+      break
     result.add d.rune code
 
 proc test*() =
@@ -54,10 +58,12 @@ proc test*() =
     "н", "г",
     "ш", "щ", "з", "х",
   ].map c => c.to_runes[0]
-  let s = "абвгд".to_runes
-  let bits = s.new_bits d
-  check 25 == len bits
-  check s == bits.new_runes d
+
+  let s = "абвгд"
+  let r = s.to_runes
+  let bits = r.new_bits d
+  check (r.len + 1) * d.code_size.int == bits.len
+  check r == bits.new_runes d
 
 if is_main_module:
   test()

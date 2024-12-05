@@ -1,6 +1,5 @@
 import std/syncio
 import std/sets
-import std/options
 import std/with
 import std/unittest
 

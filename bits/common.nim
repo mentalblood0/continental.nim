@@ -1,7 +1,5 @@
 import std/bitops
-import std/sugar
 import std/unittest
-import std/math
 
 type Bits* = ref object
   buffer*: seq[uint8]

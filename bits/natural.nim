@@ -1,5 +1,4 @@
 import std/bitops
-import std/sugar
 import std/unittest
 import std/math
 
@@ -7,14 +6,15 @@ import common
 
 const code_size = 3
 const divider = 2 ^ code_size - 1
- # 000 => end
- # 100 => 0
- # 010 => 1
- # 110 => 2
- # 001 => 3
- # 101 => 4
- # 011 => 5
- # 111 => 6
+
+# 000 => end
+# 100 => 0
+# 010 => 1
+# 110 => 2
+# 001 => 3
+# 101 => 4
+# 011 => 5
+# 111 => 6
 
 func new_bits*(n: Natural): Bits =
   new(result)
