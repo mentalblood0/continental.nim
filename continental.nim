@@ -63,8 +63,8 @@ proc load(db: DbConn, j: JsonNode, user_id: string) =
                 t.get_str
               else:
                 t["text"].get_str
-      mt_seq.join
-    var splitted = mt.find_all(re"(*UTF8)[А-Яа-яЁ-ё]+|\.|!|\?|;|,|-|—|:")
+      mt_seq.join.replace(re"https?[^ ]+ ", " ")
+    var splitted = mt.find_all(re"(*UTF8)[A-Za-zА-Яа-яЁ-ё]+|\.|!|\?|;|,|-|—|:")
     if splitted.len == 0:
       continue
     if splitted[^1] notin [".", "?", "!"]:
