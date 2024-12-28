@@ -54,19 +54,12 @@ proc load(db: DbConn, j: JsonNode, user_id: string) =
       chat_id,
       m_id,
     )
-    let mt = block:
-      let mt_seq = block:
-        if m["text"].kind == JString:
-          @[m["text"].get_str]
-        else:
-          collect:
-            for t in m["text"].elems:
-              if t.kind == JString:
-                t.get_str
-              else:
-                t["text"].get_str
-      mt_seq.join.replace(re"https?[^ ]+ ", " ")
-    var splitted = mt.find_all(re"(*UTF8)[A-Za-zА-Яа-яЁ-ё]+|\.|!|\?|;|,|-|—|:")
+    let mt = collect:
+      for e in m["text_entities"].elems:
+        e["text"].get_str
+    var splitted = mt.join.replace(re"https?[^ ]+ ", " ").find_all(
+        re"(*UTF8)[A-Za-zА-Яа-яЁ-ё]+|\.|!|\?|;|,|-|—|:"
+      )
     if splitted.len == 0:
       continue
     if splitted[^1] notin [".", "?", "!"]:
