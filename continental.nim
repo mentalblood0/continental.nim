@@ -102,6 +102,7 @@ proc generate_telegram(db_path: string, amount: int): string =
   let db = open(db_path, "", "", "")
   db.exec(sql"pragma query_only=true")
   var prev_w = "."
+  var ended_len = 0
   for i in 1 .. amount:
     let r = db.get_row(
       sql"""select wn.value, m.chat_id, m.message_id from words as wc join transitions as t
@@ -114,6 +115,8 @@ proc generate_telegram(db_path: string, amount: int): string =
     prev_w = r[0]
     if prev_w.len == 0:
       prev_w = "."
+      result &= "."
+      ended_len = result.len
       continue
     let chat_id = r[1]
     let message_id = r[2]
@@ -126,6 +129,9 @@ proc generate_telegram(db_path: string, amount: int): string =
     if i > 1 and prev_w notin [".", "!", "?", ",", ";", ":"]:
       result &= " "
     result &= hyperlink
+    if prev_w in [".", "!", "?"]:
+      ended_len = result.len
+  result = result[0 .. ended_len - 1]
   db.close()
 
 when is_main_module:
