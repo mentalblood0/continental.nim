@@ -162,29 +162,6 @@ when is_main_module:
   of "replace":
     db_path.remove_file
     db_path.write(user_id, command_line_params()[3 .. ^1])
-  of "generate":
-    do_assert db_path.file_exists
-    let db = open(db_path, "", "", "")
-    db.exec(sql"pragma query_only=true")
-    let amount = parse_int param_str 3
-    var prev_w = "."
-    for i in 1 .. amount:
-      prev_w = db.get_value(
-        sql"""select wn.value from words as wc join transitions as t join words as wn
-        on wc.value == ? and t.current_word == wc.rowid and wn.rowid == t.next_word order by random() limit 1""",
-        prev_w,
-      )
-      if prev_w.len == 0:
-        prev_w = "."
-        continue
-      if i != 1 and prev_w notin [".", "!", "?", ",", ";"]:
-        stdout.write " "
-      stdout.write prev_w
-    stdout.write "\n"
-    db.close()
-  of "generate_telegram":
-    let amount = parse_int param_str 3
-    stdout.write db_path.generate_telegram amount
   of "post":
     let amount = parse_int param_str 3
     let token = param_str 5
