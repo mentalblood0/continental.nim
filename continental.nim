@@ -44,7 +44,7 @@ proc load(db: DbConn, j: JsonNode, user_id: string) =
   for m in j["messages"].elems:
     if m["type"].get_str != "message":
       continue
-    if m{"forwarded_from"}.get_str == "":
+    if m{"forwarded_from"}.get_str != "":
       continue
     if m["from_id"].get_str != user_id:
       continue
