@@ -137,11 +137,12 @@ proc generate_telegram(db_path: string, amount: int): string =
 when is_main_module:
   let dbs_dir = get_data_dir() / "continental"
   if param_str(1) in ["-h", "--help"]:
-    echo &"continental create <telegram_user_id> <chat_dump_json1> [chat_dump_json2] ..."
-    echo &"continental replace <telegram_user_id> <chat_dump_json1> [chat_dump_json2] ..."
-    echo &"continental post (<telegram_user_id> | random) <amount> <telegram_chat_id> <telegram_bot_token>"
-    echo "\n"
+    echo "continental create <telegram_user_id> <chat_dump_json1> [chat_dump_json2] ..."
+    echo "continental replace <telegram_user_id> <chat_dump_json1> [chat_dump_json2] ..."
+    echo "continental post (<telegram_user_id> | random) <amount> <telegram_chat_id> <telegram_bot_token>"
+    echo()
     echo &"databases directory is {dbs_dir}"
+    quit()
 
   let log_handler = new_console_logger(fmt_str = "$date $time $levelname ")
   add_handler log_handler
