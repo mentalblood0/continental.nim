@@ -3,7 +3,8 @@
 # by the University of Cambridge, England. Source can be found at
 # ftp://ftp.csx.cam.ac.uk/pub/software/programming/pcre/
 
-import std/[json, sugar, strutils, nre, cmdline, os, logging, strformat]
+import
+  std/[json, sugar, strutils, nre, cmdline, os, logging, strformat, httpclient, random]
 import db_connector/db_sqlite
 
 proc create_tables(db: DbConn) =
@@ -63,7 +64,7 @@ proc load(db: DbConn, j: JsonNode, user_id: string) =
               else:
                 t["text"].get_str
       mt_seq.join
-    var splitted = mt.find_all(re"(*UTF8)[A-Za-zА-Яа-я]+|\.|!|\?|;|,|-")
+    var splitted = mt.find_all(re"(*UTF8)[А-Яа-я]+|\.|!|\?|;|,|-|—|:")
     if splitted.len == 0:
       continue
     if splitted[^1] notin [".", "?", "!"]:
@@ -96,7 +97,40 @@ proc write(db_path: string, user_id: string, jsons_paths: seq[string]) =
     db.load(p.parse_file, user_id)
   db.close()
 
+proc generate_telegram(db_path: string, amount: int): string =
+  do_assert db_path.file_exists
+  let db = open(db_path, "", "", "")
+  db.exec(sql"pragma query_only=true")
+  var prev_w = "."
+  for i in 1 .. amount:
+    let r = db.get_row(
+      sql"""select wn.value, m.chat_id, m.message_id from words as wc join transitions as t
+      join words as wn join transitions_messages as tm join messages as m
+      on wc.value == ? and t.current_word == wc.rowid and
+      wn.rowid == t.next_word and tm.transition == t.rowid and m.rowid == tm.message
+      order by random() limit 1""",
+      prev_w,
+    )
+    prev_w = r[0]
+    if prev_w.len == 0:
+      prev_w = "."
+      continue
+    let chat_id = r[1]
+    let message_id = r[2]
+    let link = &"https://t.me/c/{chat_id}/{message_id}"
+    let hyperlink =
+      if prev_w in [".", "-", "!"]:
+        &"[\\{prev_w}]({link})"
+      else:
+        &"[{prev_w}]({link})"
+    if i > 1 and prev_w notin [".", "!", "?", ",", ";", ":"]:
+      result &= " "
+    result &= hyperlink
+  db.close()
+
 when is_main_module:
+  randomize()
+
   let log_handler = new_console_logger(fmt_str = "$date $time $levelname ")
   add_handler log_handler
 
@@ -106,7 +140,14 @@ when is_main_module:
   let user_id = param_str 2
   do_assert ".." notin user_id
 
-  let db_path = dbs_dir / user_id & ".db"
+  let db_path =
+    if user_id == "random":
+      var paths: seq[string]
+      for p in walk_files dbs_dir / "*.db":
+        paths.add p
+      sample paths
+    else:
+      dbs_dir / user_id & ".db"
 
   case param_str 1
   of "create":
@@ -135,3 +176,34 @@ when is_main_module:
       stdout.write prev_w
     stdout.write "\n"
     db.close()
+  of "generate_telegram":
+    let amount = parse_int param_str 3
+    stdout.write db_path.generate_telegram amount
+  of "post":
+    let amount = parse_int param_str 3
+    let token = param_str 5
+    let client = new_http_client()
+    var multipart = new_multipart_data()
+    multipart["chat_id"] = param_str 4
+    multipart["text"] = db_path.generate_telegram amount
+    multipart["parse_mode"] = "MarkdownV2"
+    while true:
+      var response: Response
+      while true:
+        try:
+          response = client.request(
+            "https://api.telegram.org/bot" & token & "/sendMessage",
+            http_method = HttpPost,
+            multipart = multipart,
+          )
+          break
+        except:
+          lvl_warn.log &"exception during sending request to telegram: {get_current_exception().msg}"
+          continue
+      if not response.status.starts_with "200":
+        lvl_warn.log &"response is {response.status} {response.body}"
+        if response.status.starts_with "429":
+          sleep(1000)
+        continue
+      break
+    client.close()
