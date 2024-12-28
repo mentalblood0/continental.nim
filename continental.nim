@@ -135,12 +135,17 @@ proc generate_telegram(db_path: string, amount: int): string =
   db.close()
 
 when is_main_module:
-  randomize()
+  let dbs_dir = get_data_dir() / "continental"
+  if param_str(1) in ["-h", "--help"]:
+    echo &"continental create <telegram_user_id> <chat_dump_json1> [chat_dump_json2] ..."
+    echo &"continental replace <telegram_user_id> <chat_dump_json1> [chat_dump_json2] ..."
+    echo &"continental post (<telegram_user_id> | random) <amount> <telegram_chat_id> <telegram_bot_token>"
+    echo "\n"
+    echo &"databases directory is {dbs_dir}"
 
   let log_handler = new_console_logger(fmt_str = "$date $time $levelname ")
   add_handler log_handler
 
-  let dbs_dir = get_data_dir() / "continental"
   create_dir dbs_dir
 
   let user_id = param_str 2
@@ -163,6 +168,7 @@ when is_main_module:
     db_path.remove_file
     db_path.write(user_id, command_line_params()[3 .. ^1])
   of "post":
+    randomize()
     let amount = parse_int param_str 3
     let token = param_str 5
     let client = new_http_client()
