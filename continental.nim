@@ -142,6 +142,8 @@ when is_main_module:
   let log_handler = new_console_logger(fmt_str = "$date $time $levelname ")
   add_handler log_handler
 
+  randomize()
+
   create_dir dbs_dir
 
   let user_id = param_str 2
@@ -164,7 +166,6 @@ when is_main_module:
     db_path.remove_file
     db_path.write(user_id, command_line_params()[3 .. ^1])
   of "post":
-    randomize()
     let amount = parse_int param_str 3
     let token = param_str 5
     let client = new_http_client()
