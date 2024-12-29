@@ -57,7 +57,7 @@ proc load(db: DbConn, j: JsonNode, user_id: string) =
     let mt = collect:
       for e in m["text_entities"].elems:
         e["text"].get_str
-    var splitted = mt.join.replace(re"https?[^ ]+ ", " ").find_all(
+    var splitted = mt.join.replace("\n", ".").replace(re"https?[^ ]+ ", " ").find_all(
         re"(*UTF8)[A-Za-zА-Яа-яЁ-ё]+|\.|!|\?|;|,|-|—|:"
       )
     if splitted.len == 0:
