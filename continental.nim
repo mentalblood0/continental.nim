@@ -59,7 +59,7 @@ proc load(db: DbConn, j: JsonNode, user_id: string) =
         if e["type"].get_str == "link":
           continue
         e["text"].get_str
-    var splitted = mt.join.replace(re"(*UTF8)\n*", ".").find_all(
+    var splitted = mt.join.replace(re"(*UTF8)\n+", ".").find_all(
         re"(*UTF8)[A-Za-zА-Яа-яЁ-ё]+|\.|!|\?|;|,|-|—|:"
       )
     if splitted.len == 0:
